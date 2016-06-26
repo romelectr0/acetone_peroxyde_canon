@@ -1,3 +1,6 @@
+#include <IRremote.h>
+const int RECV_PIN = A0;
+IRrecv irrecv(RECV_PIN);
 int a  = 2;
 int b = 5;
 int c  = 6;
@@ -13,16 +16,16 @@ int down = 10;
 int set = 11;
 int shoot = 12;
 int whiletime = 0;
+bool upval = false;
+bool downval =  false;
+int lastir[2];
+bool setval = false;
+decode_results results;
 void setup() {
-    delay(1000);
+  Serial.begin(9600);
   // put your setup code here, to run once:
-  for(int i = 0;i<12;i++) {
-    if(i<9) {
+  for(int i = 0;i<7;i++) {
     pinMode(i+2,OUTPUT);
-    }
-    else {
-    pinMode(i+2,INPUT);  
-    } 
   }
   pinMode(dizaine,OUTPUT);
   pinMode(unite,OUTPUT);
@@ -33,12 +36,49 @@ void setup() {
   /*for(int i=0;i<100;i++){
     displaynumber(i,5,10);
   }*/
+    irrecv.enableIRIn();
+      irrecv.blink13(true);
  }
 void loop() {
+  
+  if ((irrecv.decode(&results)) || ((digitalRead(up) || digitalRead(down)) == HIGH)) {
+    if ((results.value == 0xF21169DD) || (results.value == 0xC5F4A8B0)) {
+      lastir[0] = 3;
+      irrecv.resume();
+    }    
+    else if ((results.value == 0x2A0) || (results.value == 0xAA0) || (digitalRead(up) == HIGH)) {
+      upval = true;
+      downval = false;
+      lastir[0] = 0;      
+      if ((results.value == 0x2A0) || (results.value == 0xAA0)) {
+        lastir[0] = 1;
+        lastir[1] = millis();
+      }
+        irrecv.resume();      
+    }
+    else if ((results.value == 0x2A1) || (results.value == 0xAA1) || (digitalRead(down) == HIGH)) {
+      upval = false;
+      downval = true;
+      lastir[0] = 0;      
+      if ((results.value == 0x2A1) || (results.value == 0xAA1)) {
+        lastir[0] = 2;
+        lastir[1] = millis();
+      }
+      irrecv.resume();      
+    }
+  }
+  if (upval || downval) {
   timer = timerr();
-  if (digitalRead(set == HIGH)) {
-    for(int i = 0;i < 99;i++) {
-     displaynumber(99-i,5,1000);
+  }
+  else {
+    whiletime = 0;
+    displaynumber(timer,5,5);
+  }
+  upval = false;
+  downval = false;
+  if (setval || (lastir[0] == 3)) {
+    for(int i = 0;i < timer;i++) {
+     displaynumber(timer-i,5,30);
   }
   digitalWrite(shoot,HIGH);
   while(true) {
@@ -160,7 +200,6 @@ void displaydigit(int number) {
 void displaynumber(int value,int timenumber,int timetotal) {
   int dizainedisplay = (value-(value%10))/10;
   int unitedisplay = value%10;
-  int actualtime = millis();
   for(int i = 0;i < timetotal/timenumber;i++) {
   digitalWrite(unite,HIGH);
   displaydigit(unitedisplay);
@@ -175,26 +214,59 @@ void displaynumber(int value,int timenumber,int timetotal) {
   }
   }
  int timerr() {
-  while((digitalRead(up) || digitalRead(down)) == HIGH) {
+  while(true) {
     int add;
-    if (digitalRead(up) == HIGH) {
+    if (upval) {
       add = 1;
-    }
-    else if (digitalRead(down) == HIGH) {
-      add = -1;
-    }
-     if (timer < 99) {
-      timer = timer+add;
       whiletime = whiletime+1;
-     }
+    }
+    else if (downval) {
+      add = -1;
+      whiletime = whiletime+1;
+    }
+     if (timer < 100) {     
+      timer = timer+add;
+      timer = constrain(timer,0,99); 
+      
      if (whiletime < 6) {
-      displaynumber(timer,5,500);
+      displaynumber(timer,5,100);
      }
      else {
-      displaynumber(timer,5,200);
-   }
-   if ((digitalRead(up) && digitalRead(down)) == LOW) {
+      displaynumber(timer,5,50);
+     }
+     }
+if (irrecv.decode(&results)) {
+    lastir[1] = millis();
+    if (lastir[0] == 1) {
+      upval = true;
+      downval = false;
+      irrecv.resume();        
+    }
+    else if (lastir[0] == 2) {
+      upval = false;
+      downval = true;
+      irrecv.resume();      
+    }
+}
+else {
+     if (digitalRead(up) == HIGH) {
+      upval = true;
+    }
+    else {
+      upval = false;
+    }
+    if (digitalRead(down) == HIGH) {
+      downval = true;
+    }
+    else {
+      downval = false;
+    }
+}
+   if ((upval || downval) == false) {
+    timer = constrain(timer,0,99);
     return(timer);
    }
   }
+  timer = constrain(timer,0,99);  
+  return(timer);
  }
