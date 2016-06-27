@@ -19,7 +19,7 @@ int whiletime = 0;
 bool upval = false;
 bool downval =  false;
 int lastir[2];
-bool setval = false;
+bool setval[2] = {false,false};
 decode_results results;
 void setup() {
   Serial.begin(9600);
@@ -41,9 +41,9 @@ void setup() {
  }
 void loop() {
   
-  if ((irrecv.decode(&results)) || ((digitalRead(up) || digitalRead(down)) == HIGH)) {
-    if ((results.value == 0xF21169DD) || (results.value == 0xC5F4A8B0)) {
-      lastir[0] = 3;
+  if ((irrecv.decode(&results)) || ((digitalRead(up) || digitalRead(down) || digitalRead(set)) == HIGH)) {
+    if ((results.value == 0x938F2CCF) || (results.value == 0xD03780EA) || (digitalRead(set) == HIGH)) {
+      setval[0] = true;
       irrecv.resume();
     }    
     else if ((results.value == 0x2A0) || (results.value == 0xAA0) || (digitalRead(up) == HIGH)) {
@@ -66,6 +66,13 @@ void loop() {
       }
       irrecv.resume();      
     }
+    else if ((results.value == 0xF21169DD) || (results.value == 0xC5F4A8B0)) {
+      setval[1] = true;
+      irrecv.resume();
+      }
+    else {
+      irrecv.resume();
+    }
   }
   if (upval || downval) {
   timer = timerr();
@@ -74,16 +81,11 @@ void loop() {
     whiletime = 0;
     displaynumber(timer,5,5);
   }
-  upval = false;
-  downval = false;
-  if (setval || (lastir[0] == 3)) {
-    for(int i = 0;i < timer;i++) {
-     displaynumber(timer-i,5,30);
+  if (setval[0]) {
+    setval[0] = shooter(setval[0],setval[1]);
   }
-  digitalWrite(shoot,HIGH);
-  while(true) {
-      displaynumber(0,5,1000);
-    }
+  else if (setval[1]) {
+    setval[1] = shooter(setval[0],setval[1]);
   }
 }
 
@@ -247,6 +249,9 @@ if (irrecv.decode(&results)) {
       downval = true;
       irrecv.resume();      
     }
+    else {
+      irrecv.resume();
+    }
 }
 else {
      if (digitalRead(up) == HIGH) {
@@ -269,4 +274,52 @@ else {
   }
   timer = constrain(timer,0,99);  
   return(timer);
+ }
+bool shooter(bool shootval0,bool shootval1) {
+  if(shootval0) {
+    for(int i = 0;i < timer;i++) {
+     if (irrecv.decode(&results)) {
+      if ((results.value == 0x28C) || (results.value == 0xA8C)) {
+        irrecv.resume();
+        return(false);
+      }
+      else {
+        irrecv.resume();
+      }
+     }
+     displaynumber(timer-i,5,30);
+  }
+  digitalWrite(shoot,HIGH);
+  while(true) {
+     if (irrecv.decode(&results)) {
+      if ((results.value == 0x28C) || (results.value == 0xA8C)) {
+        irrecv.resume();
+        return(false);
+      }
+      else {
+        irrecv.resume();
+      }
+     }    
+      displaynumber(0,5,5);
+    }   
+ }
+ else if (shootval1) {
+  digitalWrite(shoot,HIGH);
+  while(true) {
+     if (irrecv.decode(&results)) {
+      if ((results.value == 0x28C) || (results.value == 0xA8C)) {
+        irrecv.resume();
+        digitalWrite(shoot,LOW);
+        return(false);
+      }
+      else {
+        irrecv.resume();
+      }
+     }    
+      displaynumber(0,5,5);
+    }   
+ }
+ else {
+  return(false);
+ }
  }
