@@ -1,6 +1,7 @@
 #include <IRremote.h>
 const int RECV_PIN = A0;
 IRrecv irrecv(RECV_PIN);
+int n = 0;
 int a  = 2;
 int b = 5;
 int c  = 6;
@@ -10,6 +11,7 @@ int f = 8;
 int g = 3;
 int dizaine = A1;
 int unite = A2;
+int directshoot = A3;
 int timer = 60;
 int up = 9;
 int down = 10;
@@ -33,6 +35,7 @@ void setup() {
   pinMode(down,INPUT);
   pinMode(set,INPUT);
   pinMode(shoot,OUTPUT);
+  pinMode(directshoot,INPUT);
   /*for(int i=0;i<100;i++){
     displaynumber(i,5,10);
   }*/
@@ -41,7 +44,7 @@ void setup() {
  }
 void loop() {
   
-  if ((irrecv.decode(&results)) || ((digitalRead(up) || digitalRead(down) || digitalRead(set)) == HIGH)) {
+  if ((irrecv.decode(&results)) || ((digitalRead(up) || digitalRead(down) || digitalRead(set) || digitalRead(directshoot)) == HIGH)) {
     if ((results.value == 0x938F2CCF) || (results.value == 0xD03780EA) || (digitalRead(set) == HIGH)) {
       setval[0] = true;
       irrecv.resume();
@@ -66,9 +69,12 @@ void loop() {
       }
       irrecv.resume();      
     }
-    else if ((results.value == 0xF21169DD) || (results.value == 0xC5F4A8B0)) {
+    else if ((results.value == 0xF21169DD) || (results.value == 0xC5F4A8B0) || (digitalRead(directshoot) == HIGH)) {
       setval[1] = true;
       irrecv.resume();
+      }
+      else if (((results.value >= 0xA80) && (results.value <= 0xA89)) || ((results.value >= 0x280) && (results.value <= 0x289))) {
+        timer = timerdecide();
       }
     else {
       irrecv.resume();
@@ -276,6 +282,7 @@ else {
   return(timer);
  }
 bool shooter(bool shootval0,bool shootval1) {
+  bool shootvalue = true;
   if(shootval0) {
     for(int i = 0;i < timer;i++) {
      if (irrecv.decode(&results)) {
@@ -289,23 +296,42 @@ bool shooter(bool shootval0,bool shootval1) {
      }
      displaynumber(timer-i,5,30);
   }
-  digitalWrite(shoot,HIGH);
-  while(true) {
-     if (irrecv.decode(&results)) {
-      if ((results.value == 0x28C) || (results.value == 0xA8C)) {
-        irrecv.resume();
-        return(false);
-      }
-      else {
-        irrecv.resume();
-      }
-     }    
-      displaynumber(0,5,5);
-    }   
+  shootvalue = shooting(3000);
+  return(shootvalue);   
  }
  else if (shootval1) {
-  digitalWrite(shoot,HIGH);
-  while(true) {
+  shootvalue = shooting(250);
+  return(shootvalue);    
+ }
+ else {
+  return(false);
+ }
+ }
+ int timerdecide() {
+        int timerval[2];
+        if ((results.value >= 0xA80) && (results.value <= 0xA89)) timerval[0] = results.value - 0xA80;
+        else timerval[0] = results.value - 0x280;
+        irrecv.resume();
+        for(int i=0;i < 3000;i++) {
+        if (irrecv.decode(&results)) {
+          if ((((results.value >= 0xA80) && (results.value <= 0xA89)) || ((results.value >= 0x280) && (results.value <= 0x289))) && i > 50) {
+        if ((results.value >= 0xA80) && (results.value <= 0xA89)) timerval[1] = results.value - 0xA80;
+        else timerval[1] = results.value - 0x280;
+        irrecv.resume();
+        Serial.println((10*timerval[0])+timerval[1]);        
+        return((10*timerval[0])+timerval[1]);                   
+          }
+          else {
+            irrecv.resume();
+          }
+        }
+        displaynumber(timerval[0],5,5);
+       }
+      return(timerval[0]); 
+ }
+bool shooting(int timeneed) {
+   digitalWrite(shoot,HIGH);
+   for(int i = 0;i < timeneed/5;i++) {
      if (irrecv.decode(&results)) {
       if ((results.value == 0x28C) || (results.value == 0xA8C)) {
         irrecv.resume();
@@ -317,9 +343,7 @@ bool shooter(bool shootval0,bool shootval1) {
       }
      }    
       displaynumber(0,5,5);
-    }   
- }
- else {
-  return(false);
- }
- }
+    }
+    digitalWrite(shoot,LOW);
+    return(false);  
+}
